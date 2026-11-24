@@ -16,7 +16,8 @@
     "test": "npm run build && npm run test:types && node --test test/*.test.js",
     "prepack": "npm run build",
     "publish:patch": "npm version patch && npm publish",
-    "publish:minor": "npm version minor && npm publish"
+    "publish:minor": "npm version minor && npm publish",
+    "postpublish": "cnpm sync vuepress-plugin-partitions"
   },
   "engines": { "node": ">=16" },
   "peerDependencies": { "vuepress": "^1.9.0", "webpack": "^4.0.0" },
