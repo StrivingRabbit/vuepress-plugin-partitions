@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["types.ts"],
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "skipLibCheck": false
+  }
+}

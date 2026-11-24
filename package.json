@@ -1,0 +1,46 @@
+{
+  "name": "vuepress-plugin-partitions",
+  "version": "0.1.0",
+  "description": "VuePress 1.x documentation partition builds and static preview",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "type": "commonjs",
+  "bin": {
+    "docs-partitions": "lib/cli.js"
+  },
+  "files": ["lib", "examples", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('lib/cli.js', 0o755)\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:types": "tsc -p test/tsconfig.json",
+    "test": "npm run build && npm run test:types && node --test test/*.test.js",
+    "prepack": "npm run build",
+    "publish:patch": "npm version patch && npm publish",
+    "publish:minor": "npm version minor && npm publish"
+  },
+  "engines": { "node": ">=16" },
+  "peerDependencies": { "vuepress": "^1.9.0", "webpack": "^4.0.0" },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/glob": "^7.2.0",
+    "@types/node": "^22.15.19",
+    "@types/webpack-merge": "^4.1.5",
+    "vue": "^2.7.16",
+    "vue-router": "^3.6.5",
+    "webpack": "^4.47.0"
+  },
+  "dependencies": {
+    "@types/webpack": "^4.41.40",
+    "@vuepress/plugin-last-updated": "^1.9.9",
+    "fs-extra": "^10.0.0",
+    "glob": "^7.2.3",
+    "webpack-chain": "^6.5.1",
+    "webpack-merge": "^4.2.2",
+    "terser-webpack-plugin": "^4.2.3",
+    "ts-node": "^10.9.2",
+    "typescript": "~6.0.2",
+    "vuepress-plugin-version-check": "^1.0.1"
+  },
+  "author": "LXH",
+  "license": "ISC"
+}
