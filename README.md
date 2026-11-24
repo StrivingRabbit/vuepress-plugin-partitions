@@ -156,14 +156,24 @@ git submodule add <包仓库远端地址> packages/vuepress-plugin-partitions
 
 这会生成父仓库的 `.gitmodules` 配置及子模块引用。不要把开发机器的本地绝对路径登记为 submodule URL。当前无需依赖 GitHub Actions。
 
+使用 pnpm 10.13.1 开发，建议 Node.js 22。当前包位于父仓库的 workspace 内，独立安装时加上 `--ignore-workspace`，使用本包的 `pnpm-lock.yaml`，避免修改父仓库的依赖和锁文件：
+
 ```sh
-npm install --workspaces=false --legacy-peer-deps
-npm run typecheck
-npm run build
-npm test
-npm pack --dry-run
+pnpm install --ignore-workspace --config.auto-install-peers=false
+pnpm run typecheck
+pnpm run build
+pnpm test
+pnpm pack
 ```
 
-源码在 `src/`，TypeScript 配置参照同工作区的 `uni-docs-utils`：严格检查、CommonJS、声明文件输出到 `lib/`。CLI 源码是 `src/cli.ts`，发布入口是编译后的 `lib/cli.js`；构建步骤会设置可执行权限，保证 `yarn link` 后可以直接运行。`lib/` 是忽略的生成目录，`npm test` 会先编译，`npm pack` 和 `npm publish` 通过 `prepack` 自动编译，不发布 TS 源码或测试文件。
+提交本包的 `pnpm-lock.yaml`，后续本地复现或 CI 安装使用：
+
+```sh
+pnpm install --ignore-workspace --config.auto-install-peers=false --frozen-lockfile
+```
+
+安装命令中的 `--config.auto-install-peers=false` 关闭 peer dependency 自动安装，VuePress 由消费项目提供；Webpack 等本包测试需要的依赖已在 `devDependencies` 中声明。冻结安装时也要保留该参数，与锁文件中的设置一致。文档消费项目可以继续使用 Yarn，与公共包自身的包管理器互不影响。
+
+源码在 `src/`，TypeScript 配置参照同工作区的 `uni-docs-utils`：严格检查、CommonJS、声明文件输出到 `lib/`。CLI 源码是 `src/cli.ts`，发布入口是编译后的 `lib/cli.js`；构建步骤会设置可执行权限，保证 `yarn link` 后可以直接运行。`lib/` 是忽略的生成目录，`pnpm test` 会先编译，打包或发布通过 `prepack` 自动编译，不发布 TS 源码或测试文件。
 
 测试在临时目录运行，不会上传 COS 或刷新 CDN。真实 VuePress 构建需要消费仓库安装 VuePress 1.9.x。
