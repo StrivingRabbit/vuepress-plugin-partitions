@@ -13,10 +13,16 @@ export interface SidebarGroup {
 }
 export type Sidebar = 'auto' | false | SidebarItem[] | Record<string, SidebarItem[] | 'auto' | false>
 
+export interface ThemeConfig {
+  sidebar?: Sidebar
+  locales?: Record<string, ThemeConfig>
+  [key: string]: unknown
+}
+
 export interface SiteConfig {
   base?: string
   plugins?: unknown[] | Record<string, unknown>
-  themeConfig?: { sidebar?: Sidebar; [key: string]: unknown }
+  themeConfig?: ThemeConfig
   chainWebpack?: (config: ChainConfig, isServer: boolean) => void
   configureWebpack?: Configuration | ((config: Configuration, isServer: boolean) => Configuration | void)
   [key: string]: unknown
@@ -36,6 +42,14 @@ export interface PluginSettings {
   sections: string[]
   buildId: string
   versionCheckUI?: PartitionsOptions['versionCheckUI']
+  sidebarPages?: SidebarPage[]
+}
+
+export interface SidebarPage {
+  path: string
+  regularPath: string
+  title: string
+  frontmatter: Record<string, unknown>
 }
 
 export interface PluginContext {

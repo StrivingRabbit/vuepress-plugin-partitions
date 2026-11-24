@@ -112,7 +112,8 @@ test('client uses per-site versions and full navigation only across partition bo
   const navigations = []
   const source = fs.readFileSync(path.join(__dirname, '../lib/enhanceApp.js'), 'utf8')
   assert(source.includes('module.exports'))
-  const context = { module: { exports: {} }, __DOCS_SPLIT_SITE__: 'api', __DOCS_SPLIT_SECTIONS__: ['api', 'ai'], window: { location: { assign: url => navigations.push(url) } } }
+  const sidebarPage = { path: '/ai/page.html', regularPath: '/ai/page.html', title: 'AI', frontmatter: {} }
+  const context = { module: { exports: {} }, __DOCS_SPLIT_SITE__: 'api', __DOCS_SPLIT_SECTIONS__: ['api', 'ai'], __DOCS_SPLIT_SIDEBAR_PAGES__: [sidebarPage], window: { location: { assign: url => navigations.push(url) } } }
   context.exports = context.module.exports
   context.require = name => {
     assert.equal(name, '@partition-version-component')
@@ -120,11 +121,24 @@ test('client uses per-site versions and full navigation only across partition bo
   }
   vm.runInNewContext(source, context)
   assert.equal(typeof context.module.exports, 'function')
-  context.module.exports({ Vue: { component: (name, value) => { component = value } }, router: { beforeEach: value => { hook = value } }, siteData: { base: '/manual/' } })
+  const localPage = { path: '/api/page.html' }
+  // VuePress 冻结顶层 siteData，页面数组仍可追加；同路径的真实页面不能被覆盖。
+  const siteData = Object.freeze({ base: '/manual/', pages: [localPage] })
+  const enhanceContext = { Vue: { component: (name, value) => { component = value } }, router: { beforeEach: value => { hook = value } }, siteData }
+  context.module.exports(enhanceContext)
+  context.module.exports(enhanceContext)
+  assert.deepEqual(siteData.pages, [localPage, sidebarPage])
   assert.equal(component.computed.versionUrl(), '/manual/_sites/api/version.json')
   const next = []
   hook({ path: '/api/page.html', fullPath: '/api/page.html' }, {}, value => next.push(value))
   hook({ path: '/ai/page.html', fullPath: '/ai/page.html?q=1#heading' }, {}, value => next.push(value))
   assert.deepEqual(navigations, ['/manual/ai/page.html?q=1#heading'])
   assert.deepEqual(next, [undefined, false])
+  const serverData = Object.freeze({ base: '/manual/', pages: [localPage, sidebarPage] })
+  delete context.window
+  context.module.exports({ ...enhanceContext, siteData: serverData })
+  assert.deepEqual(serverData.pages, [localPage, sidebarPage])
+  hook({ path: '/ai/page.html', fullPath: '/ai/page.html#heading' }, {}, value => next.push(value))
+  assert.equal(next.at(-1), undefined)
+  assert.equal(navigations.length, 1)
 })

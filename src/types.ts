@@ -7,6 +7,7 @@ export interface PartitionsOptions {
   source?: string
   dest?: string
   base?: string
+  /** @deprecated 保留兼容旧配置，跨分区链接已使用同域路径。 */
   origin?: string
   sections?: string[]
   homeOnlyPlugins?: string[]

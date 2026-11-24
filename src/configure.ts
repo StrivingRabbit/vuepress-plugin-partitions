@@ -6,40 +6,50 @@ import configureCache from './cache'
 import createPlugin from './plugin'
 import { normalizeOptions } from './options'
 import type { NormalizedOptions } from './types'
-import type { SiteConfig, BuildSettings, Sidebar, SidebarItem, PluginContext, VersionPlugin } from './vuepress'
+import type { SiteConfig, ThemeConfig, BuildSettings, Sidebar, SidebarItem, SidebarPage, PluginContext, VersionPlugin } from './vuepress'
 
 interface CssExtractPlugin extends Plugin {
   options: { filename: string; chunkFilename: string }
 }
 
-function filterSidebar(sidebar: Sidebar | undefined, site: string, settings: Pick<NormalizedOptions, 'base' | 'origin' | 'getSite'>): Sidebar | undefined {
-  const { base, origin, getSite } = settings
+function filterSidebar(sidebar: Sidebar | undefined, site: string, settings: Pick<NormalizedOptions, 'base' | 'getSite'>, sidebarPages: SidebarPage[] = []): Sidebar | undefined {
+  const { base, getSite } = settings
   const targetPath = (raw: string | undefined, directory: string): string | null => {
-    if (!raw || /^(?:[a-z]+:|\/\/|#)/i.test(raw)) return null
-    const target = raw.startsWith(base) ? raw.slice(base.length) : raw.startsWith('/') ? raw.slice(1) : path.posix.join(directory, raw)
-    return getSite(target.split(/[?#]/)[0]) === site ? null : target
+    if (!raw || /^(?:[a-z][a-z\d+.-]*:|\/\/|[?#])/i.test(raw)) return null
+    const suffixIndex = raw.search(/[?#]/)
+    const pathname = suffixIndex < 0 ? raw : raw.slice(0, suffixIndex)
+    const suffix = suffixIndex < 0 ? '' : raw.slice(suffixIndex)
+    const relative = pathname.startsWith(base) ? pathname.slice(base.length) : pathname.startsWith('/') ? pathname.slice(1) : path.posix.join(directory, pathname)
+    const target = path.posix.normalize('/' + relative).slice(1)
+    if (getSite(target) === site) return null
+    if (suffix.startsWith('?')) throw new Error(`Cross-partition sidebar links cannot contain query parameters in VuePress 1: ${raw}`)
+    return target + suffix
   }
-  const external = (target: string): string => {
-    if (!origin) throw new Error('origin is required for cross-partition sidebar links (for example https://docs.example.org)')
-    const canonical = target.replace(/(^|\/)README\.md(?=[?#]|$)/i, '$1').replace(/\.md(?=[?#]|$)/i, '.html')
-    return `${origin}${base}${canonical}`
+  const href = (target: string, title: string = target): string => {
+    const suffixIndex = target.search(/[?#]/)
+    const pathname = suffixIndex < 0 ? target : target.slice(0, suffixIndex)
+    const suffix = suffixIndex < 0 ? '' : target.slice(suffixIndex)
+    let canonical = pathname.replace(/(^|\/)README(?:\.md)?$/i, '$1').replace(/\.md$/i, '.html')
+    // createSidebar 会提前移除 .md，普通页面仍需输出实际的 HTML 地址。
+    if (canonical && !canonical.endsWith('/') && !/\.html$/i.test(canonical)) canonical += '.html'
+    const route = '/' + canonical
+    if (!sidebarPages.some(page => page.path === route)) sidebarPages.push({ path: route, regularPath: route, title, frontmatter: {} })
+    return route + suffix
   }
   const filter = (item: SidebarItem, directory: string): SidebarItem => {
     if (typeof item === 'string') {
       const target = targetPath(item, directory)
-      return target === null ? item : external(target)
+      return target === null ? item : href(target, item)
     }
     if (Array.isArray(item)) {
       const target = targetPath(item[0], directory)
-      return target === null ? item : [external(target), item[1]]
+      return target === null ? item : [href(target, item[1]), item[1]]
     }
     if (!item) return item
     const children = item.children && item.children.map(child => filter(child, directory))
     const target = targetPath(item.path, directory)
     if (target === null) return children ? { ...item, children } : item
-    if (children) return { ...item, path: undefined, children }
-    // 默认主题通过 URL 协议识别外链，仅设置 type 或使用根相对路径仍会查找缺失页面。
-    return { ...item, type: 'external', path: external(target) }
+    return { ...item, ...(children ? { children } : {}), path: href(target, item.title) }
   }
   if (Array.isArray(sidebar)) return sidebar.map(item => filter(item, ''))
   if (!sidebar || typeof sidebar !== 'object') return sidebar
@@ -52,6 +62,13 @@ const configure = Object.assign((base: SiteConfig, input: BuildSettings) => {
   const { root, sections, source } = options
   if (base.base && base.base !== options.base) throw new Error(`VuePress base ${base.base} does not match partition base ${options.base}`)
   const prefix = `_sites/${site}/${buildId}/`
+  const sidebarPages: SidebarPage[] = []
+  const adaptTheme = (theme: ThemeConfig = {}): ThemeConfig => ({
+    ...theme,
+    sidebar: filterSidebar(theme.sidebar, site, options, sidebarPages),
+    ...(theme.locales ? { locales: Object.fromEntries(Object.entries(theme.locales).map(([locale, config]) => [locale, adaptTheme(config)])) } : {}),
+  })
+  const themeConfig = adaptTheme(base.themeConfig)
   const homeOnly = options.homeOnlyPlugins || []
   const entries = Array.isArray(base.plugins) ? base.plugins : Object.entries(base.plugins || {})
   const plugins = entries.filter(entry => {
@@ -66,9 +83,9 @@ const configure = Object.assign((base: SiteConfig, input: BuildSettings) => {
     dest: output,
     temp: path.join(root, '.build', site, 'temp'),
     patterns: pages.slice(),
-    themeConfig: { ...base.themeConfig, sidebar: filterSidebar(base.themeConfig && base.themeConfig.sidebar, site, options) },
+    themeConfig,
     // 版本插件必须先于分区插件执行 generated，确保复制标记时根 version.json 已写入。
-    plugins: [...plugins, [require('vuepress-plugin-version-check') as (options: Record<string, unknown>, ctx: PluginContext) => VersionPlugin, {}], [createPlugin, { site, sections, source, buildId, versionCheckUI: options.versionCheckUI }]],
+    plugins: [...plugins, [require('vuepress-plugin-version-check') as (options: Record<string, unknown>, ctx: PluginContext) => VersionPlugin, {}], [createPlugin, { site, sections, source, buildId, versionCheckUI: options.versionCheckUI, sidebarPages }]],
     chainWebpack(config: ChainConfig, isServer: boolean): void {
       if (base.chainWebpack) base.chainWebpack(config, isServer)
       configureCache(config)

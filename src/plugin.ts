@@ -2,11 +2,11 @@ import fs from 'fs-extra'
 import path from 'path'
 import type { PluginSettings, PluginContext, PageData } from './vuepress'
 
-const createPlugin = ({ site, sections, source, buildId, versionCheckUI }: PluginSettings, ctx: PluginContext) => ({
+const createPlugin = ({ site, sections, source, buildId, versionCheckUI, sidebarPages = [] }: PluginSettings, ctx: PluginContext) => ({
   name: 'vuepress-plugin-partitions',
   alias: { '@partition-version-component': require.resolve('vuepress-plugin-version-check/lib/VersionCheck.vue') },
   define() {
-    return { __DOCS_SPLIT_SITE__: site, __DOCS_SPLIT_SECTIONS__: sections }
+    return { __DOCS_SPLIT_SITE__: site, __DOCS_SPLIT_SECTIONS__: sections, __DOCS_SPLIT_SIDEBAR_PAGES__: sidebarPages }
   },
   enhanceAppFiles: path.join(__dirname, 'enhanceApp.js'),
   // 自带提示组件的主题由主题渲染，其他主题通过全局 UI 挂载，避免重复提示。

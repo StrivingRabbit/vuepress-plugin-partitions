@@ -112,7 +112,7 @@ module.exports = {
   dest: 'docs/.vuepress/dist',
   base: '/manual/',
   sections: ['api', 'component'],
-  // 跨分区侧边栏必须有带协议的域名，以兼容默认主题的 SSR 解析；不包含 base。
+  // 兼容旧配置保留，当前不参与跨分区链接生成，可省略。
   origin: 'https://docs.example.org',
   // 插件请求名，或通过函数配置插件时的函数名；只过滤原配置的 plugins 数组。
   homeOnlyPlugins: ['createLLMSText'],
@@ -132,7 +132,9 @@ module.exports = {
 
 `versionCheckUI` 只决定版本提示组件由谁挂载。默认 `global`，由插件挂载；主题已渲染 `VuepressVersionCheck` 时使用 `theme`，避免重复提示。两种方式都会使用当前分区的 `<base>_sites/<分区>/version.json` 检查更新，`theme` 不会关闭版本检查。
 
-VuePress 原配置支持通常的 `chainWebpack` 和 `configureWebpack` 函数/对象。侧边栏支持字符串、`[路径, 标题]`、分组对象和 `auto`；跨分区项转换为完整 URL，浏览器通过整页跳转进入目标分区。存在跨分区侧边栏链接时必须配置 `origin`，这些侧边栏外链在本地预览也会指向该域名；普通 Markdown 内链仍由当前同域站点处理。
+VuePress 原配置支持通常的 `chainWebpack` 和 `configureWebpack` 函数/对象。侧边栏支持字符串、`[路径, 标题]`、分组对象和 `auto`；跨分区项保留为内部链接。工具在应用初始化时补充这些链接所需的轻量页面元数据，让主题正常解析；不会编译其他分区文档或生成其路由、组件。点击后由路由守卫在当前标签页、当前域名下整页跳转，不依赖 `origin`，也不需要修改主题。真正的外链继续使用原有行为。
+
+跨分区侧边栏支持 `#锚点`。VuePress 1 的主题侧边栏解析器不能正确处理 `?query`，此类配置会明确报错，避免丢失参数或生成错误地址；普通 Markdown 链接的查询参数不受此限制。
 
 ## 从 uni-app x 迁移
 
@@ -177,3 +179,9 @@ pnpm install --ignore-workspace --config.auto-install-peers=false --frozen-lockf
 源码在 `src/`，TypeScript 配置参照同工作区的 `uni-docs-utils`：严格检查、CommonJS、声明文件输出到 `lib/`。CLI 源码是 `src/cli.ts`，发布入口是编译后的 `lib/cli.js`；构建步骤会设置可执行权限，保证 `yarn link` 后可以直接运行。`lib/` 是忽略的生成目录，`pnpm test` 会先编译，打包或发布通过 `prepack` 自动编译，不发布 TS 源码或测试文件。
 
 测试在临时目录运行，不会上传 COS 或刷新 CDN。真实 VuePress 构建需要消费仓库安装 VuePress 1.9.x。
+
+消费仓库安装默认主题和官方主题后，可直接调用它们未修改的侧边栏解析器做集成检查：
+
+```sh
+node test/verify-sidebar-themes.js /path/to/docs-project
+```

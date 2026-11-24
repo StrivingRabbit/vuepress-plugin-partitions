@@ -157,21 +157,58 @@ test('configuration keeps custom base and origin, excludes home-only plugins and
   const settings = { ...builder.options, site: 'ai', pages: ['ai/README.md'], buildId: '100-1', output: path.join(root, 'output'), origin: 'https://docs.example.org', homeOnlyPlugins: ['createLLMSText'] }
   const result = configure({ base: '/manual/', plugins: [[createLLMSText, {}]], themeConfig: { sidebar: { '/ai/': [{ path: '/api/' }] } }, configureWebpack: { output: { filename: 'custom.js' } } }, settings)
   assert(!result.plugins.some(item => item[0] === createLLMSText))
-  assert.equal(result.themeConfig.sidebar['/ai/'][0].path, 'https://docs.example.org/manual/api/')
+  assert.deepEqual(result.themeConfig.sidebar['/ai/'][0], { path: '/api/' })
+  assert.deepEqual(result.plugins.at(-1)[1].sidebarPages, [{ path: '/api/', regularPath: '/api/', title: 'api/', frontmatter: {} }])
   const config = { output: {}, plugins: [], module: { rules: [] } }
   result.configureWebpack(config, false)
   assert.equal(config.output.filename, '_sites/ai/100-1/custom.js')
   assert.equal(config.output.jsonpFunction, 'webpackJsonp_ai')
 })
 
-test('sidebar handles strings, tuples, relative links and requires origin only for cross-site items', () => {
+test('sidebar keeps cross-partition links on the current origin and preserves external links', () => {
   const settings = { base: '/manual/', origin: 'https://docs.example.org', getSite: file => file.split('/')[0] === 'api' ? 'api' : 'home' }
   const sidebar = { '/api/': ['page.md', ['/README.md', 'Home'], { title: 'Group', path: '/README.md', children: ['other.md'] }] }
   const filtered = configure.filterSidebar(sidebar, 'api', settings)
   assert.equal(filtered['/api/'][0], 'page.md')
-  assert.deepEqual(filtered['/api/'][1], ['https://docs.example.org/manual/', 'Home'])
-  assert.equal(filtered['/api/'][2].path, undefined)
+  assert.deepEqual(filtered['/api/'][1], ['/', 'Home'])
+  assert.equal(filtered['/api/'][2].path, '/')
   assert.deepEqual(filtered['/api/'][2].children, ['other.md'])
   assert.equal(configure.filterSidebar('auto', 'api', settings), 'auto')
-  assert.throws(() => configure.filterSidebar(sidebar, 'api', { ...settings, origin: '' }), /origin is required/)
+  assert.deepEqual(configure.filterSidebar(sidebar, 'api', { ...settings, origin: '' }), filtered)
+  const links = ['../api/theme-change.md#dark', ['/manual/api/theme-change.md', 'Theme'], 'api/README.md', 'https://example.org/api/page.md', '//example.org/api/page', '#heading']
+  assert.deepEqual(configure.filterSidebar(links, 'home', settings), [
+    '/api/theme-change.html#dark',
+    ['/api/theme-change.html', 'Theme'],
+    '/api/',
+    ...links.slice(3),
+  ])
+  assert.deepEqual(configure.filterSidebar([{ path: '/api/theme-change.md', title: 'Theme', children: [] }], 'home', settings), [
+    { path: '/api/theme-change.html', title: 'Theme', children: [] },
+  ])
+  assert.deepEqual(configure.filterSidebar([{ path: '/api/theme-change#dark', title: 'Theme' }], 'home', settings), [
+    { path: '/api/theme-change.html#dark', title: 'Theme' },
+  ])
+})
+
+test('sidebar canonicalizes dotted names, keeps hashes intact and rejects unsupported query links', () => {
+  const settings = { base: '/manual/', getSite: file => file.split('/')[0] === 'api' ? 'api' : 'home' }
+  const pages = []
+  const items = [['/api/uni.getLocation#x/../y', 'Location'], '/api/README.md#intro', '/api/index.html', '/api/', 'custom+scheme:page', '?q=1']
+  assert.deepEqual(configure.filterSidebar(items, 'home', settings, pages), [
+    ['/api/uni.getLocation.html#x/../y', 'Location'], '/api/#intro', '/api/index.html', '/api/', 'custom+scheme:page', '?q=1',
+  ])
+  assert.deepEqual(pages.map(page => page.path), ['/api/uni.getLocation.html', '/api/', '/api/index.html'])
+  assert.throws(() => configure.filterSidebar(['/api/page.md?q=1'], 'home', settings), /cannot contain query parameters/)
+  assert.deepEqual(configure.filterSidebar(['/api/page.md?q=1'], 'api', settings), ['/api/page.md?q=1'])
+})
+
+test('localized sidebar references add metadata without changing the source theme configuration', t => {
+  const { root, builder } = fixture(t)
+  const base = { themeConfig: { locales: { '/zh/': { title: 'Chinese', sidebar: [['/api/page.md', 'API']] } } } }
+  const before = JSON.stringify(base)
+  const configured = configure(base, { ...builder.options, site: 'home', pages: [], buildId: '100-1', output: path.join(root, 'output') })
+  assert.deepEqual(configured.themeConfig.locales['/zh/'].sidebar, [['/api/page.html', 'API']])
+  assert.equal(configured.themeConfig.locales['/zh/'].title, 'Chinese')
+  assert.deepEqual(configured.plugins.at(-1)[1].sidebarPages.map(page => page.path), ['/api/page.html'])
+  assert.equal(JSON.stringify(base), before)
 })

@@ -1,14 +1,23 @@
 import VersionCheck from '@partition-version-component'
 import type { VueConstructor } from 'vue'
 import type VueRouter from 'vue-router'
+import type { SidebarPage } from './vuepress'
 
 interface EnhanceContext {
   Vue: VueConstructor
   router: VueRouter
-  siteData: { base: string }
+  siteData: { base: string; pages: SidebarPage[] }
 }
 
 const enhanceApp = ({ Vue, router, siteData }: EnhanceContext): void => {
+  // 仅补充主题解析跨分区侧边栏所需的元数据，不生成页面、路由或组件。
+  const knownPaths = new Set(siteData.pages.map(page => page.path))
+  for (const page of __DOCS_SPLIT_SIDEBAR_PAGES__) {
+    if (!knownPaths.has(page.path)) {
+      siteData.pages.push(page)
+      knownPaths.add(page.path)
+    }
+  }
   Vue.component('VuepressVersionCheck', {
     extends: VersionCheck,
     computed: {
