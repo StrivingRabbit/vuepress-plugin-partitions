@@ -1,6 +1,6 @@
 {
   "name": "vuepress-plugin-partitions",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "VuePress 1.x documentation partition builds and static preview",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
